@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { KeywordData, TitleAnalysisResult } from '../types';
 import { analyzeCustomTitle } from '../services/api';
 import { calculateTitleLength, formatPopularity } from '../utils';
@@ -16,16 +17,16 @@ export const CustomTitleAnalyzer: React.FC<Props> = ({ allKeywords }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [currentResult, setCurrentResult] = useState<TitleAnalysisResult | null>(null);
   const [history, setHistory] = useState<TitleAnalysisResult[]>([]);
-  const [activeToken, setActiveToken] = useState<string | null>(null);
+  const [activeTokens, setActiveTokens] = useState<string[]>([]);
 
   // Update char count on input
   useEffect(() => {
     setCharCount(calculateTitleLength(inputText));
   }, [inputText]);
 
-  // Reset active token when result changes
+  // Reset active tokens when result changes
   useEffect(() => {
-    setActiveToken(null);
+    setActiveTokens([]);
   }, [currentResult]);
 
   const handleAnalyze = async () => {
@@ -61,8 +62,25 @@ export const CustomTitleAnalyzer: React.FC<Props> = ({ allKeywords }) => {
   };
 
   const handleTokenClick = (token: string) => {
-    setActiveToken(prev => prev === token ? null : token);
+    setActiveTokens(prev => {
+        if (prev.includes(token)) {
+            return prev.filter(t => t !== token);
+        } else {
+            return [...prev, token];
+        }
+    });
   };
+
+  // Calculate filtered count to match what the table displays
+  const filteredKeywordsCount = useMemo(() => {
+    if (!currentResult) return 0;
+    if (activeTokens.length === 0) {
+        return currentResult.matchedKeywords.length;
+    }
+    return currentResult.matchedKeywords.filter(kw => 
+        activeTokens.some(token => kw.keyword.includes(token))
+    ).length;
+  }, [currentResult, activeTokens]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -172,14 +190,14 @@ export const CustomTitleAnalyzer: React.FC<Props> = ({ allKeywords }) => {
                             </div>
                         </div>
                         <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold self-start md:self-center">
-                            命中词数: {currentResult.matchedKeywords.length}
+                            命中词数: {filteredKeywordsCount}
                         </div>
                     </div>
 
                     <div>
                         <TokenDisplay 
                             tokens={currentResult.tokens} 
-                            activeToken={activeToken}
+                            activeTokens={activeTokens}
                             onTokenClick={handleTokenClick}
                         />
                     </div>
@@ -201,7 +219,7 @@ export const CustomTitleAnalyzer: React.FC<Props> = ({ allKeywords }) => {
                         <KeywordTable 
                             keywords={currentResult.matchedKeywords} 
                             titleContext={currentResult.title} 
-                            highlightToken={activeToken}
+                            highlightTokens={activeTokens}
                             hideHeader={true}
                         />
                     </div>

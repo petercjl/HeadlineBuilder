@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import { TitleAnalysisResult } from '../types';
 import { TokenDisplay } from './TokenDisplay';
 import { KeywordTable, KeywordTableHeader } from './KeywordTable';
 import { formatPopularity } from '../utils';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Tag } from 'lucide-react';
 
 interface Props {
   result: TitleAnalysisResult;
-  index: number;
+  label?: string; // Optional custom label (e.g. "新品期")
+  index?: number; // Optional index for numbering if no specific label
 }
 
-export const TitleCard: React.FC<Props> = ({ result, index }) => {
+export const TitleCard: React.FC<Props> = ({ result, label, index }) => {
   const [copied, setCopied] = useState(false);
-  const [activeToken, setActiveToken] = useState<string | null>(null);
+  const [activeTokens, setActiveTokens] = useState<string[]>([]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(result.title);
@@ -21,9 +23,26 @@ export const TitleCard: React.FC<Props> = ({ result, index }) => {
   };
 
   const handleTokenClick = (token: string) => {
-    // Toggle: if clicking same token, deselect it
-    setActiveToken(prev => prev === token ? null : token);
+    setActiveTokens(prev => {
+        if (prev.includes(token)) {
+            return prev.filter(t => t !== token);
+        } else {
+            return [...prev, token];
+        }
+    });
   };
+
+  // Calculate filtered count to match what the table displays
+  const filteredKeywordsCount = useMemo(() => {
+    if (activeTokens.length === 0) {
+        return result.matchedKeywords.length;
+    }
+    return result.matchedKeywords.filter(kw => 
+        activeTokens.some(token => kw.keyword.includes(token))
+    ).length;
+  }, [result.matchedKeywords, activeTokens]);
+
+  const displayLabel = label || (index !== undefined ? `推荐方案 #${index + 1}` : '标题分析');
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6 transition-all relative">
@@ -33,17 +52,26 @@ export const TitleCard: React.FC<Props> = ({ result, index }) => {
         <div className="px-6 py-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-600 text-white font-bold text-lg shadow-sm shadow-indigo-200">
-                    {index + 1}
+                <div className="flex items-center justify-center h-10 px-3 rounded-xl bg-indigo-600 text-white font-bold text-sm shadow-sm shadow-indigo-200">
+                    {displayLabel}
                 </div>
+                {result.tag && result.group === 'other' && (
+                  <div className="flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-md border border-slate-200">
+                    <Tag size={12} />
+                    {result.tag}
+                  </div>
+                )}
+                <div className="hidden md:block w-px h-6 bg-slate-200 mx-1"></div>
                 <div>
-                    <h3 className="text-lg font-bold text-slate-800 leading-tight">推荐方案 #{index + 1}</h3>
-                    <p className="text-sm text-slate-500">高点击高转化组合</p>
+                    <h3 className="text-lg font-bold text-slate-800 leading-tight">标题数据分析</h3>
                 </div>
             </div>
             <div className="flex items-center gap-2">
                 <div className="px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 text-emerald-700 rounded-lg text-sm font-semibold border border-green-100 shadow-sm">
                 覆盖人气: {formatPopularity(result.totalPopularityMin)} ~ {formatPopularity(result.totalPopularityMax)}
+                </div>
+                <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold border border-indigo-100 shadow-sm">
+                    命中词数: {filteredKeywordsCount}
                 </div>
             </div>
             </div>
@@ -64,7 +92,7 @@ export const TitleCard: React.FC<Props> = ({ result, index }) => {
             <div>
               <TokenDisplay 
                 tokens={result.tokens} 
-                activeToken={activeToken}
+                activeTokens={activeTokens}
                 onTokenClick={handleTokenClick}
               />
             </div>
@@ -84,7 +112,7 @@ export const TitleCard: React.FC<Props> = ({ result, index }) => {
             keywords={result.matchedKeywords} 
             titleContext={result.title} 
             hideHeader={true} 
-            highlightToken={activeToken}
+            highlightTokens={activeTokens}
          />
       </div>
     </div>
